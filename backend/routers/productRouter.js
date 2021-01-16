@@ -3,9 +3,17 @@ import expressAsyncHandler from 'express-async-handler';
 import data from '../data.js';
 import Product from '../models/productModel.js';
 import User from '../models/userModel.js';
+import redis from 'redis';
 import { isAdmin, isAuth, isSellerOrAdmin } from '../utils.js';
 
 const productRouter = express.Router();
+const redis_client = redis.createClient(6379);
+
+
+//Middleware Function to Check Cache
+function checkCache(req, res, next) {
+
+}
 
 productRouter.get(
   '/',
@@ -88,20 +96,42 @@ productRouter.get(
   })
 );
 
-productRouter.get(
-  '/:id',
-  expressAsyncHandler(async (req, res) => {
-    const product = await Product.findById(req.params.id).populate(
-      'seller',
-      'seller.name seller.logo seller.rating seller.numReviews'
-    );
-    if (product) {
-      res.send(product);
-    } else {
-      res.status(404).send({ message: 'Product Not Found' });
+productRouter.get('/:id',async (req, res,next) => {
+  const { id } = req.params;
+
+  redis_client.get(id, (err, data) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).send(err);
     }
-  })
-);
+    //if no match found
+    if (data != null) {
+      console.log("Data enviada desde caché");
+      return res.send(data);
+    } else {
+      //proceed to next middleware function
+      next();
+    }
+  });
+});
+
+productRouter.get('/:id',async (req, res) => {
+        
+        const { id } = req.params;
+        const product = await Product.findById(req.params.id).populate(
+          'seller',
+          'seller.name seller.logo seller.rating seller.numReviews'
+        );
+        
+        if (product) {
+          redis_client.setex(id, 3600, JSON.stringify(product));
+          console.log("Data enviada desde la consulta");
+          return res.send(product);
+        }
+        else {
+          return res.status(404).send({ message: 'Product Not Found' });
+        }      
+  });
 
 productRouter.post(
   '/',
