@@ -122,7 +122,6 @@ a.brand {
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  height: 7rem;
 }
 .row.center {
   justify-content: center;
